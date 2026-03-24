@@ -1,0 +1,19 @@
+# API Keys e dados sensíveis
+keys.txt
+*.local
+.env
+.env.*
+
+# Uploads e cache
+*.cache
+*.tmp
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
