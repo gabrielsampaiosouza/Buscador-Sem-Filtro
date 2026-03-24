@@ -713,7 +713,7 @@ function initHistorico() {
       <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn-action" id="btnHist">Carregar</button></div>
     </div>
     <div id="histPills" style="display:none;margin-top:12px"></div>
-    <div id="histActsTop" style="display:none;margin-top:12px;margin-bottom:12px"></div>
+    <div id="histContextArea" style="display:none;margin-top:10px"></div>
     <div id="outHist"></div>
     <div id="histActsBot" style="display:none;margin-top:12px"></div>
   </div>`;
@@ -770,33 +770,34 @@ function sortHist(by) {
 }
 
 function showHistActions() {
-  const top = document.getElementById('histActsTop');
   const bot = document.getElementById('histActsBot');
-  
-  [top, bot].forEach(el => {
-    el.style.display = 'flex'; el.style.gap = '8px'; el.style.flexWrap = 'wrap'; el.style.justifyContent = 'center'; el.style.margin = '24px 0';
-    el.innerHTML = `<button class="btn-action" style="padding:14px 28px;font-size:15px">Gerar Auditoria de Crescimento com IA</button>`;
-    const btn = el.querySelector('button');
-    btn.onclick = async () => {
-      const newWin = window.open('', '_blank');
-      if (newWin) {
-        newWin.document.write('<html style="background:#09090b;color:#a1a1aa"><head><title>Processando...</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">Gerando relatório com IA, por favor aguarde...</body></html>');
-        newWin.document.close();
-      }
-
-      if (!modalLoading('Conectando com IA...')) { if(newWin) newWin.close(); return; }
-      try {
-        updateLoadMsg('Analisando performance de ' + histData.videos.length + ' videos...');
-        const t = await aiHistory(histData.channel, histData.videos);
-        if (!t || !t.trim()) throw new Error('A IA retornou uma resposta vazia.');
-        closeModal();
-        openReportPage('Performance: '+histData.channel.title, `${fmtNum(histData.channel.subs)} subs · ${calcVidsPerWeek(histData.channel.vids, histData.channel.created)} vids/sem`, md2html(t), '', newWin);
-      } catch(e) { 
-          if(newWin && !newWin.closed) newWin.close();
-          modalError('Erro na análise de performance', e.message || 'Erro desconhecido.'); 
-      }
-    };
-  });
+  const ctxArea = document.getElementById('histContextArea');
+  ctxArea.style.display = 'block';
+  ctxArea.innerHTML = `<div>
+    <label style="font-size:10px;color:var(--text-dim);font-weight:700;text-transform:uppercase;display:block;margin-bottom:5px">Contexto adicional (opcional) — adicione seu prompt aqui</label>
+    <textarea id="histContext" placeholder="Ex: Meu canal é sobre fatos curiosos, me ajude a entender padrões..." style="height:56px"></textarea>
+  </div>`;
+  bot.style.display = 'flex'; bot.style.gap = '8px'; bot.style.flexWrap = 'wrap'; bot.style.justifyContent = 'center'; bot.style.margin = '16px 0';
+  bot.innerHTML = `<button class="btn-action" style="padding:14px 28px;font-size:15px">Gerar Auditoria de Crescimento com IA</button>`;
+  bot.querySelector('button').onclick = async () => {
+    const newWin = window.open('', '_blank');
+    if (newWin) {
+      newWin.document.write('<html style="background:#09090b;color:#a1a1aa"><head><title>Processando...</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">Gerando relatório com IA, por favor aguarde...</body></html>');
+      newWin.document.close();
+    }
+    if (!modalLoading('Conectando com IA...')) { if(newWin) newWin.close(); return; }
+    try {
+      updateLoadMsg('Analisando performance de ' + histData.videos.length + ' vídeos...');
+      const ctx = document.getElementById('histContext')?.value || '';
+      const t = await aiHistory(histData.channel, histData.videos, ctx);
+      if (!t || !t.trim()) throw new Error('A IA retornou uma resposta vazia.');
+      closeModal();
+      openReportPage('Performance: '+histData.channel.title, `${fmtNum(histData.channel.subs)} subs · ${calcVidsPerWeek(histData.channel.vids, histData.channel.created)} vids/sem`, md2html(t), ctx, newWin);
+    } catch(e) {
+      if(newWin && !newWin.closed) newWin.close();
+      modalError('Erro na análise de performance', e.message || 'Erro desconhecido.');
+    }
+  };
 }
 
 function renderVList(vids, el) {
@@ -1420,7 +1421,7 @@ function initFavoritos() { renderFavs(); }
 function renderFavs() {
   const el = document.getElementById('tab-favoritos');
   const list = favs.all();
-  if (!list.length) { el.innerHTML = `<div class="card"><div class="empty-box"><h3>Nenhum favorito</h3><p>Favorite canais e videos para acessar rapidamente.</p></div></div>`; return; }
+  if (!list.length) { el.innerHTML = `<div class="card"><div class="empty-box"><h3>Nenhum favorito</h3><p>Favorite canais e vídeos para acessar rapidamente.</p></div></div>`; return; }
   const chans = list.filter(f=>f.type==='canal');
   const vids = list.filter(f=>f.type==='video');
   el.innerHTML = `<div class="card">
@@ -1433,15 +1434,19 @@ function renderFavs() {
     </div>
     <h4 style="font-size:12px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px">Canais Favoritados (${chans.length})</h4>
     ${chans.length ? chans.map(f=>`<div class="fav-item">
-      <div><div class="fav-name">${f.name}</div><div class="fav-type">${f.type==='canal'?'Canal':'Video'} · ${timeAgo(new Date(f.ts).toISOString())}</div></div>
+      <div><div class="fav-name">${f.name}</div><div class="fav-type">Canal · ${timeAgo(new Date(f.ts).toISOString())}</div></div>
       <div class="fav-actions">
         <button class="btn-action ghost small" onclick="openFav('${f.id}','${f.type}')">Abrir</button>
         <button class="btn-action ghost small" style="color:var(--red)" onclick="rmFav('${f.id}')">Remover</button>
       </div>
     </div>`).join('') : `<div class="empty-box" style="padding:18px 10px"><p>Nenhum canal favoritado.</p></div>`}
     <h4 style="font-size:12px;text-transform:uppercase;color:var(--text-dim);margin:14px 0 8px">Vídeos Favoritos (${vids.length})</h4>
-    ${vids.length ? vids.map(f=>`<div class="fav-item">
-      <div><div class="fav-name">${f.name}</div><div class="fav-type">Video · ${timeAgo(new Date(f.ts).toISOString())}</div></div>
+    ${vids.length ? vids.map(f=>`<div class="fav-item" style="align-items:center;gap:12px">
+      <img src="https://img.youtube.com/vi/${f.id}/mqdefault.jpg" style="width:80px;height:45px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="${f.name}" onerror="this.style.display='none'">
+      <div style="flex:1;min-width:0">
+        <div class="fav-name" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</div>
+        <div class="fav-type">Vídeo · ${timeAgo(new Date(f.ts).toISOString())}</div>
+      </div>
       <div class="fav-actions">
         <button class="btn-action ghost small" onclick="openFav('${f.id}','${f.type}')">Abrir</button>
         <button class="btn-action ghost small" style="color:var(--red)" onclick="rmFav('${f.id}')">Remover</button>
@@ -1501,16 +1506,44 @@ window.exportFavPdf = function() {
   if (!list.length) return toast('Sem favoritos para exportar.');
   const chans = list.filter(f=>f.type==='canal');
   const vids = list.filter(f=>f.type==='video');
-  const text = [
-    'RELATÓRIO DE FAVORITOS',
-    `Total de itens salvos: ${list.length}`,
+  const mdContent = [
+    '## Meus Favoritos',
+    `**Total:** ${list.length} itens (${chans.length} canais, ${vids.length} vídeos)`,
     '',
-    `CANAIS FAVORITADOS (${chans.length})`,
-    ...(chans.length ? chans.flatMap((f, i) => [`${i+1}. ${f.name}`, `https://youtube.com/channel/${f.id}`, '']) : ['Nenhum', '']),
-    `VÍDEOS FAVORITOS (${vids.length})`,
-    ...(vids.length ? vids.flatMap((f, i) => [`${i+1}. ${f.name}`, `https://youtube.com/watch?v=${f.id}`, '']) : ['Nenhum'])
+    ...(chans.length ? [
+      '## Canais Favoritados',
+      ...chans.map((f, i) => [
+        `### ${i+1}. ${f.name}`,
+        `🔗 https://youtube.com/channel/${f.id}`,
+        `📅 Adicionado em: ${new Date(f.ts).toLocaleDateString('pt-BR')}`,
+        ''
+      ].join('\n'))
+    ] : []),
+    ...(vids.length ? [
+      '## Vídeos Favoritos',
+      ...vids.map((f, i) => [
+        `### ${i+1}. ${f.name}`,
+        `🔗 https://youtube.com/watch?v=${f.id}`,
+        `🖼️ Thumbnail: https://img.youtube.com/vi/${f.id}/maxresdefault.jpg`,
+        `📅 Adicionado em: ${new Date(f.ts).toLocaleDateString('pt-BR')}`,
+        ''
+      ].join('\n'))
+    ] : [])
   ].join('\n');
-  makePDF('Relatorio Favoritos', text.replace(/\n/g,'<br>'), `${list.length} itens salvos`, 'BSF_Favoritos');
+
+  const newWin = window.open('', '_blank');
+  if (newWin) {
+    newWin.document.write('<html style="background:#09090b;color:#a1a1aa"><head><title>Gerando PDF...</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">Gerando PDF, aguarde...</body></html>');
+    newWin.document.close();
+  }
+  try {
+    makePDF('Favoritos - Busca Sem Filtro', md2html(mdContent), `${list.length} itens salvos`, 'BSF_Favoritos');
+    if (newWin) setTimeout(() => { if (!newWin.closed) newWin.close(); }, 500);
+    toast('PDF gerado!', 'success');
+  } catch(e) {
+    if (newWin && !newWin.closed) newWin.close();
+    toast('Erro ao gerar PDF: ' + e.message, 'error');
+  }
 };
 
 // ---- EXPORTAR ----

@@ -261,7 +261,7 @@ Para cada: titulo, formato, duracao, gancho de abertura.
 O que publicar HOJE para surfar nos trends. Seja especifico e operacional.`);
 }
 
-async function aiHistory(ch, vids) {
+async function aiHistory(ch, vids, userContext = '') {
   const vpw = calcVidsPerWeek(ch.vids, ch.created);
   const list = vids.slice(0,15).map((v,i)=>`${i+1}. "${v.title}" — ${fmtNum(v.views)} views, ${v.eng}% eng, ${v.durStr}, ${v.isShort?'SHORT':'Longo'}, ${timeAgo(v.published)}`).join('\n');
   return callAI(`${DSF_SYSTEM}
@@ -273,6 +273,7 @@ CANAL: ${ch.title} (${fmtFull(ch.subs)} subs, ${vpw} vids/semana)
 ULTIMOS VIDEOS:
 ${list}
 
+${userContext ? `CONTEXTO DO USUÁRIO:\n${userContext}\n` : ''}
 Relatorio em portugues com Markdown:
 ## Diagnostico de Performance
 Media de views, tendencia (crescimento ou queda?), consistencia.
