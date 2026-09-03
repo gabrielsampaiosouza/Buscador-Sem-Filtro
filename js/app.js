@@ -120,7 +120,7 @@ function initKeys() {
       // Cofre existe e está bloqueado: pede a senha e restaura ao desbloquear.
       setTimeout(async () => {
         try {
-          if (await Vault.ensureUnlocked()) { restoreInputs(); await updateProvider(); }
+          if (await Vault.ensureUnlocked()) { restoreInputs(); await updateProvider({ force: true }); }
         } catch (e) {}
       }, 600);
     }
@@ -129,10 +129,8 @@ function initKeys() {
   // ---- Modelos dinâmicos (ModelRegistry) + combobox pesquisável ----
   let modelItems = [];   // lista cheia do provider atual
   let modelReq = 0;      // guarda contra race ao trocar de provider
-  const searchIn = document.getElementById('aiModelSearch');
   const countEl = document.getElementById('modelCount');
   const refreshBtn = document.getElementById('btnRefreshModels');
-  let searchTimer = null;
 
   function toRegShape(m) {
     return { id: m.id, name: m.name || m.id, free: m.free !== false, context: 0, pricing: '', updated: '' };
@@ -147,8 +145,7 @@ function initKeys() {
     return String(n);
   }
   function renderModelOptions(keepValue) {
-    const q = searchIn ? searchIn.value : '';
-    const items = window.ModelRegistry ? ModelRegistry.filterItems(modelItems, q) : modelItems.slice();
+    const items = window.ModelRegistry ? ModelRegistry.filterItems(modelItems, '') : modelItems.slice();
     const prev = keepValue || modelSel.value || getStoredAIModel(provSel.value);
     modelSel.innerHTML = '';
     items.forEach(m => {
@@ -209,10 +206,6 @@ function initKeys() {
     } catch (e) { /* registry já deu toast de fallback */ }
   }
   provSel.addEventListener('change', () => updateProvider());
-  if (searchIn) searchIn.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => renderModelOptions(modelSel.value), 150);
-  });
   if (refreshBtn) refreshBtn.addEventListener('click', async () => {
     refreshBtn.classList.add('bsf-spin');
     try { await updateProvider({ force: true }); }
@@ -268,7 +261,7 @@ function initKeys() {
     checkWarning();
 
     if (providerId === 'gemini') {
-      await updateProvider(); // lista ao vivo precisa da key recém-salva
+      await updateProvider({ force: true }); // key nova: ignora fallback cacheado
     }
 
     toast('Chaves salvas no cofre!', 'success');

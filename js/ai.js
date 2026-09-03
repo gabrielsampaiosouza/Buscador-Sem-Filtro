@@ -104,9 +104,12 @@ async function callAI(prompt, opts) {
     }
     if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('net::ERR')) {
       const baseUrl = prov.auth === 'none' ? 'https://api.llm7.io' : url.split('/v1')[0];
-      const extra = prov.auth === 'none'
+      let extra = prov.auth === 'none'
         ? '\n• Internet instavel\n• Provedor fora do ar (tente outro modelo)'
         : '\n• Internet instavel\n• Provedor bloqueado no seu pais\n• CORS (se usando file://, rode: npx serve .)';
+      if (provider === 'zen' && /muse-spark/.test(model || '')) {
+        extra += '\n• Este modelo usa o endpoint /v1/responses; se o navegador bloquear, teste um modelo chat Free (ex.: mimo-v2.5-free)';
+      }
       throw new Error('[' + prov.name + '] Erro de conexao\n\nNao foi possivel conectar com ' + baseUrl + '\n\nPossiveis causas:' + extra);
     }
     throw err;

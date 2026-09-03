@@ -149,7 +149,7 @@ const AI_PROVIDERS = {
   zen: {
     name: 'OpenCode Zen',
     keyLabel: 'Chave API Zen — opencode.ai/auth',
-    freeInfo: '<a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Lista ao vivo via /zen/v1/models, filtrada automaticamente p/ modelos Free; este app só usa os gratuitos.',
+    freeInfo: '<a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Lista ao vivo via /zen/v1/models, filtrada automaticamente p/ modelos Free; este app só usa os gratuitos. Modelos muse-spark usam Responses API.',
     // fallback gerado em 2026-09-03 via GET https://opencode.ai/zen/v1/models (só Free; lista ao vivo prevalece)
     models: [
       { id:'big-pickle', name:'Big Pickle', free:true },

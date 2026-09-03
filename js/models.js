@@ -69,10 +69,10 @@
     return /(^|[\/:_-])(lite|light|1b)([\/:_-]|$)/i.test(id || '');
   }
 
-  // ---- Adapter: OpenRouter (público, sem key) ----
+  // ---- Adapter: OpenRouter (público, sem key; SOMENTE :free) ----
   async function fetchOpenRouter() {
     var d = await fetchJson('https://openrouter.ai/api/v1/models');
-    var arr = (d && d.data) || [];
+    var arr = ((d && d.data) || []).filter(function (m) { return (m.id || '').endsWith(':free'); });
     return arr.map(function (m) {
       var pricing = '';
       try {
@@ -125,6 +125,7 @@
         if (methods.indexOf('generateContent') === -1) continue;
         var id = String(m.name || '').replace(/^models\//, '');
         if (!id) continue;
+        if (!/flash|gemma/i.test(id)) continue; // lista: só Flash, Flash Lite e Gemma
         out.push({
           id: id,
           name: m.displayName || id,
