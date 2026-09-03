@@ -190,9 +190,11 @@ function initKeys() {
 
     // Always show model field
     modelField.style.display = 'flex';
-    aiIn.closest('.key-field').style.display = prov.auth === 'none' ? 'none' : 'flex';
-    aiIn.placeholder = "Chave da API...";
-    aiIn.type = "password";
+    // llm7 tem key opcional: campo visível mesmo com auth 'none'
+    const needKey = prov.auth !== 'none' || !!prov.optionalKey;
+    aiIn.closest('.key-field').style.display = needKey ? 'flex' : 'none';
+    aiIn.placeholder = provSel.value === 'llm7' ? 'Token llm7 (opcional)...' : 'Chave da API...';
+    aiIn.type = 'password';
 
     // Render imediato com fallback (select nunca vazio), depois lista ao vivo
     modelItems = hardcodedItems(provSel.value);

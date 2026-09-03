@@ -218,6 +218,8 @@
   };
 
   var lastListError = null; // {provider, reason} da última falha (p/ toast preciso)
+  // Zen: WAF bloqueia fetch de browsers (curl/navegação passam) — fallback completo e silencioso.
+  var QUIET_FALLBACK = { zen: true };
   function notifyFallback(providerId, reason) {
     try {
       if (typeof toast === 'function') toast('Lista offline para ' + providerId + (reason ? ' (' + reason + ')' : '') + '.', 'error');
@@ -267,8 +269,9 @@
           return items;
         }
       } catch (e) {
-        // Sem key = caminho esperado (fallback silencioso); demais falhas avisam com o motivo.
-        if (!/exige API key/i.test((e && e.message) || '')) {
+        // Sem key = caminho esperado (fallback silencioso); demais falhas avisam com o motivo,
+        // exceto providers com fallback silencioso (QUIET_FALLBACK: só console).
+        if (!/exige API key/i.test((e && e.message) || '') && !QUIET_FALLBACK[providerId]) {
           var r = (typeof lastListError !== 'undefined' && lastListError && lastListError.provider === providerId)
             ? lastListError.reason : failReason(e);
           notifyFallback(providerId, r);
