@@ -377,9 +377,35 @@ function calcVidsPerWeek(totalVids, createdAt) {
   return parseFloat((totalVids / weeks).toFixed(1));
 }
 
-function getYTKey() { return document.getElementById('apiKey')?.value.trim() || localStorage.getItem('bsf_ytKey') || ''; }
-function getAIProvider() { return document.getElementById('aiProvider')?.value || localStorage.getItem('bsf_aiProvider') || 'llm7'; }
+function getYTKey() {
+  const input = document.getElementById('apiKey')?.value.trim() || '';
+  if (input) return input;
+  try {
+    if (window.Vault && Vault.isUnlocked()) {
+      const s = Vault.snapshot();
+      if (s && s.ytKey) return s.ytKey;
+    }
+  } catch (e) {}
+  return localStorage.getItem('bsf_ytKey') || '';
+}
+function getAIProvider() {
+  const sel = document.getElementById('aiProvider')?.value || '';
+  if (sel) return sel;
+  try {
+    if (window.Vault && Vault.isUnlocked()) {
+      const s = Vault.snapshot();
+      if (s && s.aiProvider) return s.aiProvider;
+    }
+  } catch (e) {}
+  return localStorage.getItem('bsf_aiProvider') || 'llm7';
+}
 function getAIKeysMap() {
+  try {
+    if (window.Vault && Vault.isUnlocked()) {
+      const s = Vault.snapshot();
+      if (s && s.aiKeys) return s.aiKeys;
+    }
+  } catch (e) {}
   try {
     const m = JSON.parse(localStorage.getItem('bsf_aiKeys') || '{}');
     if (m && typeof m === 'object') return m;
@@ -395,6 +421,12 @@ function getAIKey(providerId = getAIProvider()) {
   return localStorage.getItem('bsf_aiKey') || '';
 }
 function getStoredAIModel(providerId = getAIProvider()) {
+  try {
+    if (window.Vault && Vault.isUnlocked()) {
+      const s = Vault.snapshot();
+      if (s && s.aiModels && s.aiModels[providerId]) return s.aiModels[providerId];
+    }
+  } catch (e) {}
   const mapRaw = localStorage.getItem('bsf_aiModels');
   if (mapRaw) {
     try {
