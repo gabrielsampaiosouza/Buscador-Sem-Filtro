@@ -103,9 +103,26 @@ function initKeys() {
     localStorage.setItem('bsf_aiKeys', JSON.stringify(aiKeysMap));
   }
 
-  // Restore saved values
-  ytIn.value = localStorage.getItem('bsf_ytKey') || '';
-  provSel.value = localStorage.getItem('bsf_aiProvider') || 'llm7';
+  // Restore saved values (cofre primeiro, legacy como fallback)
+  function restoreInputs() {
+    let snap = null;
+    try { if (window.Vault && Vault.isUnlocked()) snap = Vault.snapshot(); } catch (e) {}
+    ytIn.value = (snap && snap.ytKey) || localStorage.getItem('bsf_ytKey') || '';
+    provSel.value = (snap && snap.aiProvider) || localStorage.getItem('bsf_aiProvider') || 'llm7';
+  }
+  restoreInputs();
+  try {
+    if (window.Vault && !Vault.exists() && (localStorage.getItem('bsf_ytKey') || localStorage.getItem('bsf_aiKeys') || localStorage.getItem('bsf_aiKey'))) {
+      setTimeout(() => { try { toast('Migre seu cofre: clique Salvar e crie a senha mestra.', 'error'); } catch (e) {} }, 600);
+    } else if (window.Vault && Vault.exists() && !Vault.isUnlocked()) {
+      // Cofre existe e está bloqueado: pede a senha e restaura ao desbloquear.
+      setTimeout(async () => {
+        try {
+          if (await Vault.ensureUnlocked()) { restoreInputs(); await updateProvider(); }
+        } catch (e) {}
+      }, 600);
+    }
+  } catch (e) {}
 
   // ---- Modelos dinâmicos (ModelRegistry) + combobox pesquisável ----
   let modelItems = [];   // lista cheia do provider atual
@@ -216,46 +233,56 @@ function initKeys() {
   document.getElementById('toggleAiVis').onclick = () => { aiIn.type = aiIn.type === 'password' ? 'text' : 'password'; };
 
   document.getElementById('btnClearCache').onclick = () => {
-    if (confirm('Tem certeza que deseja apagar todas as chaves e limpar o cache da ferramenta?')) {
-      localStorage.clear();
-      toast('Cache limpo com sucesso! A página será recarregada.');
+    if (confirm('Tem certeza que deseja apagar o cofre, as chaves e o cache de modelos? (favoritos mantidos)')) {
+      try { if (window.Vault) Vault.clearAll(); } catch (e) {}
+      toast('Cofre e cache limpos! A página será recarregada.');
       setTimeout(() => location.reload(), 1500);
     }
   };
 
   document.getElementById('btnSaveKeys').onclick = async () => {
+    try {
+      if (window.Vault && !await Vault.ensureUnlocked()) return;
+    } catch (e) { toast('Falha no cofre: ' + e.message, 'error'); return; }
     const providerId = provSel.value;
     const prov = AI_PROVIDERS[providerId];
     const keyVal = aiIn.value.trim();
     aiKeysMap = getAIKeysMap();
     if (prov && prov.auth === 'none' && providerId !== 'ollama') delete aiKeysMap[providerId];
     else aiKeysMap[providerId] = keyVal;
-    const modelMapRaw = localStorage.getItem('bsf_aiModels');
     let modelMap = {};
-    if (modelMapRaw) {
-      try {
-        const parsed = JSON.parse(modelMapRaw);
-        if (parsed && typeof parsed === 'object') modelMap = parsed;
-      } catch(e) {}
-    }
+    try {
+      if (window.Vault && Vault.isUnlocked()) modelMap = Vault.snapshot().aiModels || {};
+      else modelMap = JSON.parse(localStorage.getItem('bsf_aiModels') || '{}') || {};
+    } catch(e) {}
     modelMap[providerId] = resolveProviderModel(providerId, modelSel.value);
-    localStorage.setItem('bsf_ytKey', ytIn.value.trim());
-    localStorage.setItem('bsf_aiKeys', JSON.stringify(aiKeysMap));
-    localStorage.setItem('bsf_aiProvider', providerId);
-    localStorage.setItem('bsf_aiModel', modelMap[providerId]);
-    localStorage.setItem('bsf_aiModels', JSON.stringify(modelMap));
+    const payload = { ytKey: ytIn.value.trim(), aiKeys: aiKeysMap, aiModels: modelMap, aiProvider: providerId };
+    try {
+      if (window.Vault && Vault.isUnlocked()) {
+        await Vault.saveAll(payload);
+      } else {
+        // sem WebCrypto: legacy em plaintext
+        localStorage.setItem('bsf_ytKey', payload.ytKey);
+        localStorage.setItem('bsf_aiKeys', JSON.stringify(aiKeysMap));
+        localStorage.setItem('bsf_aiProvider', providerId);
+        localStorage.setItem('bsf_aiModel', modelMap[providerId]);
+        localStorage.setItem('bsf_aiModels', JSON.stringify(modelMap));
+      }
+    } catch (e) { toast('Falha ao salvar: ' + e.message, 'error'); return; }
     aiIn.value = aiKeysMap[providerId] || '';
     checkWarning();
-    
-    if (providerId === 'ollama') {
-      await updateProvider(); // reload models dynamically based on new url
+
+    if (providerId === 'ollama' || providerId === 'gemini') {
+      await updateProvider(); // lista ao vivo precisa da key/URL recém-salva
     }
-    
-    toast('Chaves salvas!', 'success');
+
+    toast('Chaves salvas no cofre!', 'success');
   };
   document.getElementById('btnTestKeys').onclick = async () => {
-    let ytKey = document.getElementById('apiKey')?.value.trim();
-    if (!ytKey && localStorage.getItem('bsf_ytKey')) ytKey = localStorage.getItem('bsf_ytKey');
+    try {
+      if (window.Vault && !Vault.isUnlocked() && !await Vault.ensureUnlocked()) return;
+    } catch (e) { toast('Falha no cofre: ' + e.message, 'error'); return; }
+    let ytKey = getYTKey();
     if (!ytKey) return toast('Insira a chave do YouTube primeiro.');
     modalLoading('Testando conexões...');
     try {
