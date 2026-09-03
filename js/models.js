@@ -64,7 +64,7 @@
       });
   }
 
-  // ponytail: heurística simples — Lite só aparece se vier da API real, nunca do fallback.
+  // Lite só aparece se vier da API real, nunca do fallback.
   function isLite(id) {
     return /(^|[\/:_-])(lite|light|1b)([\/:_-]|$)/i.test(id || '');
   }
