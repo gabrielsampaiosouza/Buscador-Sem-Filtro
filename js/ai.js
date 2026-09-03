@@ -22,9 +22,9 @@ async function callAI(prompt, opts) {
     url = prov.endpoint(model);
   }
 
-  // Build headers
+  // Build headers (llm7: key opcional — envia quando salva no cofre)
   const headers = { 'Content-Type': 'application/json' };
-  if (prov.auth === 'bearer') {
+  if (prov.auth === 'bearer' || (key && prov.optionalKey)) {
     headers['Authorization'] = 'Bearer ' + key;
   }
   if (prov.extraHeaders) Object.assign(headers, prov.extraHeaders);

@@ -154,8 +154,12 @@
   var OAI_BASES = {
     huggingface: 'https://router.huggingface.co',
     nvidia: 'https://integrate.api.nvidia.com',
-    ollama_cloud: 'https://api.ollama.cloud',
+    ollama_cloud: 'https://ollama.com',
     llm7: 'https://api.llm7.io'
+  };
+  // Filtro Free por provider (tokens oficiais; substring match no id)
+  var LIVE_FREE_TOKENS = {
+    ollama_cloud: ['gemma4:31b', 'gpt-oss:120b', 'gpt-oss:20b', 'nemotron-3-nano:30b', 'nemotron-3-super', 'nemotron-3-ultra']
   };
   function shortName(id) {
     var s = String(id || '');
@@ -169,14 +173,19 @@
       if (!base) throw new Error('Sem base para ' + providerId);
       if (prov.auth === 'bearer' && !key) throw new Error(providerId + ' exige API key');
       var headers = { 'Accept': 'application/json' };
-      if (prov.auth === 'bearer' && key) headers['Authorization'] = 'Bearer ' + key;
+      if (key && (prov.auth === 'bearer' || prov.optionalKey)) headers['Authorization'] = 'Bearer ' + key;
       var d = await fetchJson(base + '/v1/models', { headers: headers });
       // Alguns gateways retornam {models:[{name}]} em vez de {data:[{id}]}; normaliza ambos.
       var arr = (d && d.data) || d.models || [];
       return arr.map(function (m) {
         var id = typeof m === 'string' ? m : (m.id || m.name || '');
         return { id: id, name: shortName(id), free: true, context: 0, pricing: '', updated: '' };
-      }).filter(function (m) { return !!m.id; });
+      }).filter(function (m) {
+        if (!m.id) return false;
+        var toks = LIVE_FREE_TOKENS[providerId];
+        if (toks) return toks.some(function (t) { return m.id.indexOf(t) !== -1; });
+        return true;
+      });
     };
   }
   // ---- Adapter: OpenCode Zen (GET /zen/v1/models é público; FILTRO: só gratuitos) ----
@@ -234,7 +243,8 @@
           return items;
         }
       } catch (e) {
-        notifyFallback(providerId);
+        // Sem key = caminho esperado (fallback silencioso); toast só em falha real de rede/API.
+        if (!/exige API key/i.test((e && e.message) || '')) notifyFallback(providerId);
       }
     }
     // Sem adapter ou API falhou: tenta cache expirado, senão fallback.

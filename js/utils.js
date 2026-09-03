@@ -185,36 +185,39 @@ const AI_PROVIDERS = {
   },
   ollama_cloud: {
     name: 'Ollama (Cloud)',
-    keyLabel: 'Chave API Ollama Cloud — cloud.ollama.com',
-    freeInfo: 'Utilizar a api do <a href="https://docs.ollama.com/cloud" target="_blank" style="color:var(--primary)">Ollama Cloud</a>.',
+    keyLabel: 'Chave API Ollama Cloud — ollama.com/settings/keys',
+    freeInfo: 'Utilizar a api do <a href="https://docs.ollama.com/cloud" target="_blank" style="color:var(--primary)">Ollama Cloud</a>. Lista ao vivo via ollama.com/v1/models, filtrada p/ modelos Free.',
+    // fallback gerado em 2026-09-03 via GET https://ollama.com/v1/models (só Free retos da lista oficial)
     models: [
-      { id:'llama3.3', name:'Llama 3.3', free:true },
-      { id:'qwen2.5:14b', name:'Qwen 2.5 14B', free:true },
-      { id:'gemma3:12b', name:'Gemma 3 12B', free:true },
-      { id:'mistral-small', name:'Mistral Small', free:true },
-      { id:'deepseek-r1', name:'DeepSeek R1', free:true },
+      { id:'gemma4:31b', name:'Gemma 4 31B', free:true },
+      { id:'gpt-oss:120b', name:'GPT-OSS 120B', free:true },
+      { id:'gpt-oss:20b', name:'GPT-OSS 20B', free:true },
+      { id:'nemotron-3-nano:30b', name:'Nemotron 3 Nano 30B', free:true },
+      { id:'nemotron-3-super', name:'Nemotron 3 Super', free:true },
+      { id:'nemotron-3-ultra', name:'Nemotron 3 Ultra', free:true },
     ],
-    endpoint: () => 'https://api.ollama.cloud/v1/chat/completions',
+    endpoint: () => 'https://ollama.com/v1/chat/completions',
     buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], stream:false }),
     parseResp: (d) => d.choices?.[0]?.message?.content || '',
     auth: 'bearer',
   },
   llm7: {
     name: 'LLM7.io (Gratis)',
-    keyLabel: 'Sem chave necessaria — acesso anonimo',
-    freeInfo: '100% gratuito, sem cadastro. 30 req/min anonimo, 120 req/min com token gratis.',
+    keyLabel: 'Chave API llm7 (opcional; libera modelos Pro) — cole o token',
+    freeInfo: '100% gratuito, sem cadastro. 30 req/min anonimo, 120 req/min com token gratis. Lista ao vivo com todos os modelos; fallback só com os validados via health-check.',
+    // fallback gerado em 2026-09-03: só modelos que RESPONDERAM ao health-check
+    // POST /v1/chat/completions (44 testados; image/video e 401/402 excluídos)
     models: [
-      { id:'gpt-4.1-nano', name:'GPT-4.1 Nano', free:true },
-      { id:'gpt-4o-mini', name:'GPT-4o Mini', free:true },
-      { id:'deepseek-r1', name:'DeepSeek R1', free:true },
-      { id:'gemini-2.5-flash', name:'Gemini 2.5 Flash', free:true },
-      { id:'llama-4-maverick', name:'Llama 4 Maverick', free:true },
-      { id:'mistral-small-latest', name:'Mistral Small', free:true },
+      { id:'codestral-latest', name:'Codestral', free:true },
+      { id:'gpt-oss', name:'GPT-OSS', free:true },
+      { id:'minimax-m2.7', name:'MiniMax M2.7', free:true },
+      { id:'mistral-Nemo-Instruct-2407', name:'Mistral Nemo', free:true },
     ],
     endpoint: () => 'https://api.llm7.io/v1/chat/completions',
     buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], max_tokens:4000 }),
     parseResp: (d) => d.choices?.[0]?.message?.content || '',
     auth: 'none',
+    optionalKey: true, // sem key = anônimo; com key salva, envia Authorization
   },
 };
 

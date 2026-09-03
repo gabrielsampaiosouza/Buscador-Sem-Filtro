@@ -74,6 +74,8 @@ document.addEventListener('keydown', e => {
 
 // ---- KEYS ----
 function initKeys() {
+  if (window.__bsfKeysInit) return; // idempotente: ignora 2º disparo de DOMContentLoaded
+  window.__bsfKeysInit = true;
   const ytIn = document.getElementById('apiKey');
   const aiIn = document.getElementById('aiKey');
   const provSel = document.getElementById('aiProvider');
