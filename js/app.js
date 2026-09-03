@@ -107,49 +107,61 @@ function initKeys() {
   ytIn.value = localStorage.getItem('bsf_ytKey') || '';
   provSel.value = localStorage.getItem('bsf_aiProvider') || 'llm7';
 
-  // Populate models for selected provider
-  async function updateProvider() {
-    const prov = AI_PROVIDERS[provSel.value];
-    if (!prov) return;
-    // Update model list
+  // ---- Modelos dinâmicos (ModelRegistry) + combobox pesquisável ----
+  let modelItems = [];   // lista cheia do provider atual
+  let modelReq = 0;      // guarda contra race ao trocar de provider
+  const searchIn = document.getElementById('aiModelSearch');
+  const countEl = document.getElementById('modelCount');
+  const refreshBtn = document.getElementById('btnRefreshModels');
+  let searchTimer = null;
+
+  function toRegShape(m) {
+    return { id: m.id, name: m.name || m.id, free: m.free !== false, context: 0, pricing: '', updated: '' };
+  }
+  function hardcodedItems(pid) {
+    const p = AI_PROVIDERS[pid];
+    return ((p && p.models) || []).map(toRegShape);
+  }
+  function fmtCtx(n) {
+    n = parseInt(n) || 0;
+    if (n >= 1000) return Math.round(n / 1000) + 'k';
+    return String(n);
+  }
+  function renderModelOptions(keepValue) {
+    const q = searchIn ? searchIn.value : '';
+    const items = window.ModelRegistry ? ModelRegistry.filterItems(modelItems, q) : modelItems.slice();
+    const prev = keepValue || modelSel.value || getStoredAIModel(provSel.value);
     modelSel.innerHTML = '';
-
-    // Special logic for Ollama Local: load models dynamically from local server
-    if (provSel.value === 'ollama') {
-      try {
-        const baseUrl = (aiIn.value.trim() || 'http://localhost:11434').replace(/\/$/, '') + '/api/tags';
-        const res = await fetch(baseUrl, { signal: AbortSignal.timeout(5000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.models && data.models.length > 0) {
-            data.models.forEach(m => {
-              const o = document.createElement('option');
-              o.value = m.name;
-              o.textContent = m.name + ' (' + (m.size / 1073741824).toFixed(1) + 'GB)';
-              modelSel.appendChild(o);
-            });
-          }
-        }
-      } catch(e) {}
-    }
-
-    // Fallback: add hardcoded models if dynamic load failed or is not ollama
-    if (modelSel.options.length === 0) {
-      prov.models.forEach(m => {
-        const o = document.createElement('option');
-        o.value = m.id;
-        o.textContent = m.name;
-        modelSel.appendChild(o);
-      });
-    }
-
-    const savedModel = getStoredAIModel(provSel.value);
-    // Only set saved model if it exists in the current list (installed models)
-    if (savedModel && Array.from(modelSel.options).some(o => o.value === savedModel)) {
-      modelSel.value = savedModel;
+    items.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id;
+      const short = String(m.id).split('/').pop();
+      o.textContent = (m.free ? '[FREE] ' : '') + ((m.name && m.name !== m.id) ? m.name + ' · ' + short : m.id);
+      let tip = m.id;
+      if (m.context) tip += ' · ctx ' + fmtCtx(m.context);
+      if (m.pricing) tip += ' · ' + m.pricing;
+      o.title = tip;
+      modelSel.appendChild(o);
+    });
+    if (prev && Array.from(modelSel.options).some(o => o.value === prev)) {
+      modelSel.value = prev;
     } else if (modelSel.options.length > 0) {
       modelSel.value = modelSel.options[0].value;
     }
+    if (countEl) {
+      let ts = 0;
+      try { ts = ModelRegistry.cacheTs(provSel.value); } catch (e) {}
+      const hhmm = ts ? new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+      countEl.textContent = items.length + ' de ' + modelItems.length + ' modelos • atualizados ' + hhmm;
+    }
+  }
+
+  // Populate models for selected provider (mesma assinatura; dinâmica por dentro)
+  async function updateProvider(opts) {
+    opts = opts || {};
+    const prov = AI_PROVIDERS[provSel.value];
+    if (!prov) return;
+    const my = ++modelReq;
 
     aiKeysMap = getAIKeysMap();
     aiIn.value = aiKeysMap[provSel.value] || '';
@@ -170,8 +182,30 @@ function initKeys() {
       aiIn.placeholder = "Chave da API...";
       aiIn.type = "password";
     }
+
+    // Render imediato com fallback (select nunca vazio), depois lista ao vivo
+    modelItems = hardcodedItems(provSel.value);
+    renderModelOptions(getStoredAIModel(provSel.value));
+    if (!window.ModelRegistry) return;
+    try {
+      const live = await ModelRegistry.list(provSel.value, { force: !!opts.force });
+      if (my !== modelReq) return;
+      if (live && live.length) {
+        modelItems = live;
+        renderModelOptions(modelSel.value);
+      }
+    } catch (e) { /* registry já deu toast de fallback */ }
   }
-  provSel.addEventListener('change', updateProvider);
+  provSel.addEventListener('change', () => updateProvider());
+  if (searchIn) searchIn.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderModelOptions(modelSel.value), 150);
+  });
+  if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+    refreshBtn.classList.add('bsf-spin');
+    try { await updateProvider({ force: true }); }
+    finally { refreshBtn.classList.remove('bsf-spin'); }
+  });
   updateProvider();
 
   function checkWarning() { warn.classList.toggle('hidden', !!ytIn.value.trim()); }
