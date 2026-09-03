@@ -5,7 +5,7 @@
   'use strict';
 
   var TTL_MS = 24 * 60 * 60 * 1000; // 24h
-  var TIMEOUT_MS = 12000;
+  var TIMEOUT_MS = 20000;
   var LS_PREFIX = 'bsf_models_';
 
   function lsKey(providerId) { return LS_PREFIX + providerId; }
@@ -217,10 +217,22 @@
     llm7: makeOpenAIAdapter('llm7')
   };
 
-  function notifyFallback(providerId) {
+  var lastListError = null; // {provider, reason} da última falha (p/ toast preciso)
+  function notifyFallback(providerId, reason) {
     try {
-      if (typeof toast === 'function') toast('Lista offline para ' + providerId + ' (sem internet ou API fora).', 'error');
+      if (typeof toast === 'function') toast('Lista offline para ' + providerId + (reason ? ' (' + reason + ')' : '') + '.', 'error');
     } catch (e) {}
+    try {
+      if (typeof console !== 'undefined' && console.warn) console.warn('[BSF-models] fallback', providerId, reason || '');
+    } catch (e) {}
+  }
+
+  function failReason(e) {
+    var msg = (e && (e.message || String(e))) || '';
+    var http = /HTTP \d+/.exec(msg);
+    if (http) return http[0]; // ex.: HTTP 403
+    if (e && e.name === 'AbortError') return 'timeout ' + Math.round(TIMEOUT_MS / 1000) + 's';
+    return 'rede/bloqueio'; // TypeError Failed to fetch: sem rede, CORS, adblock ou antivirus bloqueando o fetch
   }
 
   async function list(providerId, opts) {
@@ -236,15 +248,31 @@
         try {
           if (typeof getAIKey === 'function') key = getAIKey(providerId) || null;
         } catch (e) {}
-        var items = await fn(key);
+        var items = null;
+        try {
+          items = await fn(key);
+        } catch (e) {
+          // 1 retry em timeout (TTFB alto); demais erros caem direto no fallback.
+          if (e && e.name === 'AbortError') {
+            try { items = await fn(key); } catch (e2) { e = e2; items = null; }
+          }
+          if (!items) {
+            lastListError = { provider: providerId, reason: failReason(e) };
+            throw e;
+          }
+        }
         items = (items || []).filter(function (m) { return m && m.id; });
         if (items.length) {
           cacheSet(providerId, items);
           return items;
         }
       } catch (e) {
-        // Sem key = caminho esperado (fallback silencioso); toast só em falha real de rede/API.
-        if (!/exige API key/i.test((e && e.message) || '')) notifyFallback(providerId);
+        // Sem key = caminho esperado (fallback silencioso); demais falhas avisam com o motivo.
+        if (!/exige API key/i.test((e && e.message) || '')) {
+          var r = (typeof lastListError !== 'undefined' && lastListError && lastListError.provider === providerId)
+            ? lastListError.reason : failReason(e);
+          notifyFallback(providerId, r);
+        }
       }
     }
     // Sem adapter ou API falhou: tenta cache expirado, senão fallback.
