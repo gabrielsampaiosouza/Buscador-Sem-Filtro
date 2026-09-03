@@ -107,10 +107,6 @@ async function callAI(prompt, opts) {
       let extra = prov.auth === 'none'
         ? '\n• Internet instavel\n• Provedor fora do ar (tente outro modelo)'
         : '\n• Internet instavel\n• Provedor bloqueado no seu pais\n• CORS (se usando file://, rode: npx serve .)';
-      if (provider === 'zen') {
-        extra += '\n• O Zen nao envia CORS: o navegador sempre bloqueia o acesso direto. Rode python3 server.py e abra http://localhost:8080';
-        if (/muse-spark/.test(model || '')) extra += ' (este modelo usa /v1/responses)';
-      }
       throw new Error('[' + prov.name + '] Erro de conexao\n\nNao foi possivel conectar com ' + baseUrl + '\n\nPossiveis causas:' + extra);
     }
     throw err;

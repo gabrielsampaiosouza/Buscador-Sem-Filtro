@@ -86,7 +86,7 @@ function initKeys() {
   const keyLabel = document.getElementById('aiKeyLabel');
 
   // Populate provider dropdown from AI_PROVIDERS (idempotente: ignora 2º init)
-  const customOrder = ['llm7', 'zen', 'openrouter', 'huggingface', 'gemini', 'ollama_cloud', 'nvidia'];
+  const customOrder = ['llm7', 'openrouter', 'huggingface', 'gemini', 'ollama_cloud', 'nvidia'];
   if (provSel.options.length === 0) {
   Object.entries(AI_PROVIDERS).sort((a,b) => {
     let ia = customOrder.indexOf(a[0]); let ib = customOrder.indexOf(b[0]);

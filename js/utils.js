@@ -94,20 +94,6 @@ const quota = {
 };
 
 // ============ AI PROVIDERS ============
-// Extrai texto do formato Responses API (usado pelos modelos muse-spark do Zen).
-function parseResponsesOutput(d) {
-  try {
-    const out = d.output || [];
-    for (const item of out) {
-      if (item && item.type === 'message' && Array.isArray(item.content)) {
-        const t = item.content.filter(c => c.type === 'output_text' && c.text).map(c => c.text).join('');
-        if (t) return t;
-      }
-    }
-    if (typeof d.output_text === 'string' && d.output_text) return d.output_text;
-  } catch (e) {}
-  return '';
-}
 const AI_PROVIDERS = {
   gemini: {
     name: 'Gemini (Google)',
@@ -145,31 +131,6 @@ const AI_PROVIDERS = {
     parseResp: (d) => d.choices?.[0]?.message?.content || '',
     auth: 'bearer',
     extraHeaders: { 'HTTP-Referer':'https://buscasemfiltro.app', 'X-Title':'Busca Sem Filtro' },
-  },
-  zen: {
-    name: 'OpenCode Zen',
-    keyLabel: 'Chave API Zen — opencode.ai/auth',
-    freeInfo: '<a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Lista ao vivo (só Free). O Zen não envia CORS: use <b>python3 server.py</b> e abra http://localhost:8080. Modelos muse-spark usam Responses API.',
-    // fallback gerado em 2026-09-03 via GET https://opencode.ai/zen/v1/models (só Free; lista ao vivo prevalece)
-    models: [
-      { id:'big-pickle', name:'Big Pickle', free:true },
-      { id:'mimo-v2.5-free', name:'MiMo V2.5', free:true },
-      { id:'ling-3.0-flash-fin-free', name:'Ling 3.0 Flash', free:true },
-      { id:'nemotron-3-ultra-free', name:'Nemotron 3 Ultra', free:true },
-      { id:'nemotron-3.5-lightning-free', name:'Nemotron 3.5 Lightning', free:true },
-      { id:'deepseek-v4-flash-free', name:'DeepSeek V4 Flash', free:true },
-      { id:'laguna-s-2.1-free', name:'Laguna S 2.1', free:true },
-      { id:'muse-spark-1.3-contributor-free', name:'Muse Spark 1.3', free:true },
-      { id:'muse-spark-1.2-contributor-free', name:'Muse Spark 1.2', free:true },
-    ],
-    endpoint: (model) => {
-      const rsp = /muse-spark/.test(model || '');
-      try { if (window.__bsfZenRelay) return rsp ? '/api/zen/responses' : '/api/zen/chat'; } catch (e) {}
-      return rsp ? 'https://opencode.ai/zen/v1/responses' : 'https://opencode.ai/zen/v1/chat/completions';
-    },
-    buildBody: (prompt, model) => /muse-spark/.test(model || '') ? { model, input: prompt } : { model, messages:[{role:'user',content:prompt}], max_tokens:4000 },
-    parseResp: (d) => d.choices?.[0]?.message?.content || parseResponsesOutput(d),
-    auth: 'bearer',
   },
   huggingface: {
     name: 'Hugging Face',

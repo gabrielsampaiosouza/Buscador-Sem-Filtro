@@ -38,7 +38,6 @@ Clique no ícone ⚙️ no canto superior direito e preencha:
 | **LLM7.io** (recomendado) | [LLM7.io](https://llm7.io) — gratuito com limite generoso |
 | **OpenRouter** | [OpenRouter.ai](https://openrouter.ai) — diversos modelos |
 | **Gemini (Google AI)** | [Google AI Studio](https://aistudio.google.com) |
-| **OpenCode Zen** | [opencode.ai/auth](https://opencode.ai/auth) — modelos Free filtrados |
 
 > 📖 Guia completo para Ollama: leia o arquivo [GUIA_OLLAMA.md](GUIA_OLLAMA.md).
 
@@ -130,7 +129,6 @@ Sem ela você consegue usar todas as ferramentas de dados, mas não os relatóri
 | **LLM7.io** (recomendado) | Gratuito com limite | [llm7.io](https://llm7.io) |
 | OpenRouter | Pay-per-use | [openrouter.ai](https://openrouter.ai) |
 | Gemini (Google AI) | Gratuito com limite | [aistudio.google.com](https://aistudio.google.com) |
-| OpenCode Zen | Modelos Free | [opencode.ai/auth](https://opencode.ai/auth) |
 
 ---
 
@@ -142,12 +140,8 @@ Sem ela você consegue usar todas as ferramentas de dados, mas não os relatóri
 # Com npx (não precisa instalar nada)
 npx serve .
 
-# Com Python (só estáticos)
+# Com Python
 python -m http.server 8080
-
-# Com Python + relay OpenCode Zen (o Zen não envia CORS; sem isto a lista cai no fallback)
-python3 server.py 8080
-# -> http://localhost:8080
 
 # Com PHP
 php -S localhost:8080

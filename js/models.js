@@ -157,6 +157,10 @@
     ollama_cloud: 'https://ollama.com',
     llm7: 'https://api.llm7.io'
   };
+  // Modelos com 200 OK no health-check (só esses listam; resto excluído).
+  var LIVE_RESPONDERS = {
+    llm7: ['codestral-latest', 'gpt-oss', 'minimax-m2.7', 'mistral-Nemo-Instruct-2407']
+  };
   // Filtro Free por provider (tokens oficiais; substring match no id)
   var LIVE_FREE_TOKENS = {
     ollama_cloud: ['gemma4:31b', 'gpt-oss:120b', 'gpt-oss:20b', 'nemotron-3-nano:30b', 'nemotron-3-super', 'nemotron-3-ultra']
@@ -182,45 +186,19 @@
         return { id: id, name: shortName(id), free: true, context: 0, pricing: '', updated: '' };
       }).filter(function (m) {
         if (!m.id) return false;
+        // llm7: SOMENTE validados no health-check (health 2026-09-03, 44 modelos).
+        var exact = LIVE_RESPONDERS[providerId];
+        if (exact) return exact.indexOf(m.id) !== -1;
         var toks = LIVE_FREE_TOKENS[providerId];
         if (toks) return toks.some(function (t) { return m.id.indexOf(t) !== -1; });
         return true;
       });
     };
   }
-  // ---- Adapter: OpenCode Zen ----
-  // O Zen NÃO envia CORS: 1) tenta o relay same-origin (server.py); 2) direto
-  // (só funciona fora do navegador). FILTRO: só gratuitos.
-  function setZenRelay(v) { try { window.__bsfZenRelay = !!v; } catch (e) {} }
-  function zenShort(id) {
-    return String(id || '').replace(/-free$/, '').replace(/-contributor$/, '');
-  }
-  function zenFilterFree(arr) {
-    return arr
-      .filter(function (m) {
-        var id = typeof m === 'string' ? m : (m.id || '');
-        return /free/i.test(id) || id === 'big-pickle';
-      })
-      .map(function (m) {
-        var id = typeof m === 'string' ? m : m.id;
-        return { id: id, name: zenShort(id), free: true, context: 0, pricing: 'Free', updated: '' };
-      });
-  }
-  async function fetchZen() {
-    try {
-      var items = zenFilterFree(((await fetchJson('/api/zen/models', { timeout: 8000 })) || {}).data || []);
-      if (items.length) { setZenRelay(true); return items; }
-    } catch (e) {}
-    var live = zenFilterFree(((await fetchJson('https://opencode.ai/zen/v1/models')) || {}).data || []);
-    setZenRelay(false);
-    return live;
-  }
-
-  // Adapters por provider (um fetch cada, timeout 12s, sem vazar key em log).
+  // Adapters por provider (um fetch cada, timeout 20s, sem vazar key em log).
   var adapters = {
     openrouter: fetchOpenRouter,
     gemini: fetchGemini,
-    zen: fetchZen,
     huggingface: makeOpenAIAdapter('huggingface'),
     nvidia: makeOpenAIAdapter('nvidia'),
     ollama_cloud: makeOpenAIAdapter('ollama_cloud'),
@@ -228,8 +206,6 @@
   };
 
   var lastListError = null; // {provider, reason} da última falha (p/ toast preciso)
-  // Zen: WAF bloqueia fetch de browsers (curl/navegação passam) — fallback completo e silencioso.
-  var QUIET_FALLBACK = { zen: true };
   function notifyFallback(providerId, reason) {
     try {
       if (typeof toast === 'function') toast('Lista offline para ' + providerId + (reason ? ' (' + reason + ')' : '') + '.', 'error');
@@ -279,9 +255,8 @@
           return items;
         }
       } catch (e) {
-        // Sem key = caminho esperado (fallback silencioso); demais falhas avisam com o motivo,
-        // exceto providers com fallback silencioso (QUIET_FALLBACK: só console).
-        if (!/exige API key/i.test((e && e.message) || '') && !QUIET_FALLBACK[providerId]) {
+        // Sem key = caminho esperado (fallback silencioso); demais falhas avisam com o motivo.
+        if (!/exige API key/i.test((e && e.message) || '')) {
           var r = (typeof lastListError !== 'undefined' && lastListError && lastListError.provider === providerId)
             ? lastListError.reason : failReason(e);
           notifyFallback(providerId, r);
