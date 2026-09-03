@@ -151,15 +151,8 @@
   // ---- Adapter genérico OpenAI-compatible: GET {base}/v1/models ----
   // Com Authorization: Bearer KEY quando auth==='bearer'. 404/CORS/falha => throw (fallback).
   var OAI_BASES = {
-    grok: 'https://api.x.ai',
-    mistral: 'https://api.mistral.ai',
-    cerebras: 'https://api.cerebras.ai',
-    cohere: 'https://api.cohere.com',
     huggingface: 'https://router.huggingface.co',
-    github: 'https://models.github.ai',
     nvidia: 'https://integrate.api.nvidia.com',
-    zhipu: 'https://open.bigmodel.cn/api/paas/v4',
-    klusterai: 'https://api.kluster.ai',
     ollama_cloud: 'https://api.ollama.cloud',
     llm7: 'https://api.llm7.io'
   };
@@ -176,12 +169,8 @@
       if (prov.auth === 'bearer' && !key) throw new Error(providerId + ' exige API key');
       var headers = { 'Accept': 'application/json' };
       if (prov.auth === 'bearer' && key) headers['Authorization'] = 'Bearer ' + key;
-      if (provId(providerId) === 'github') {
-        headers['Accept'] = 'application/vnd.github+json';
-        headers['X-GitHub-Api-Version'] = '2022-11-28';
-      }
       var d = await fetchJson(base + '/v1/models', { headers: headers });
-      // Cohere usa GET /v1/models sem prefixo extra; se vier {models:[{name}]} normaliza também.
+      // Alguns gateways retornam {models:[{name}]} em vez de {data:[{id}]}; normaliza ambos.
       var arr = (d && d.data) || d.models || [];
       return arr.map(function (m) {
         var id = typeof m === 'string' ? m : (m.id || m.name || '');
@@ -189,35 +178,33 @@
       }).filter(function (m) { return !!m.id; });
     };
   }
-  function provId(p) { return p; }
-
-  // ---- Adapter: Ollama local (lógica atual, movida de app.js) ----
-  async function fetchOllama(key) {
-    var base = (key && /^https?:\/\//.test(key.trim())) ? key.trim().replace(/\/$/, '') : 'http://localhost:11434';
-    var d = await fetchJson(base + '/api/tags', { timeout: 5000 });
-    var arr = (d && d.models) || [];
-    return arr.map(function (m) {
-      var gb = m.size ? ' (' + (m.size / 1073741824).toFixed(1) + 'GB)' : '';
-      return { id: m.name, name: (m.name || '') + gb, free: true, context: 0, pricing: '', updated: m.modified_at || '' };
-    });
+  // ---- Adapter: OpenCode Zen (GET /zen/v1/models é público; FILTRO: só gratuitos) ----
+  function zenShort(id) {
+    return String(id || '').replace(/-free$/, '').replace(/-contributor$/, '');
+  }
+  async function fetchZen() {
+    var d = await fetchJson('https://opencode.ai/zen/v1/models');
+    var arr = (d && d.data) || [];
+    return arr
+      .filter(function (m) {
+        var id = typeof m === 'string' ? m : (m.id || '');
+        return /free/i.test(id) || id === 'big-pickle';
+      })
+      .map(function (m) {
+        var id = typeof m === 'string' ? m : m.id;
+        return { id: id, name: zenShort(id), free: true, context: 0, pricing: 'Free', updated: '' };
+      });
   }
 
   // Adapters por provider (um fetch cada, timeout 12s, sem vazar key em log).
   var adapters = {
     openrouter: fetchOpenRouter,
     gemini: fetchGemini,
-    grok: makeOpenAIAdapter('grok'),
-    mistral: makeOpenAIAdapter('mistral'),
-    cerebras: makeOpenAIAdapter('cerebras'),
-    cohere: makeOpenAIAdapter('cohere'),
+    zen: fetchZen,
     huggingface: makeOpenAIAdapter('huggingface'),
-    github: makeOpenAIAdapter('github'),
     nvidia: makeOpenAIAdapter('nvidia'),
-    zhipu: makeOpenAIAdapter('zhipu'),
-    klusterai: makeOpenAIAdapter('klusterai'),
     ollama_cloud: makeOpenAIAdapter('ollama_cloud'),
-    llm7: makeOpenAIAdapter('llm7'),
-    ollama: fetchOllama
+    llm7: makeOpenAIAdapter('llm7')
   };
 
   function notifyFallback(providerId) {

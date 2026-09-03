@@ -83,8 +83,9 @@ function initKeys() {
   const hint = document.getElementById('providerHint');
   const keyLabel = document.getElementById('aiKeyLabel');
 
-  // Populate provider dropdown from AI_PROVIDERS
-  const customOrder = ['llm7', 'huggingface', 'openrouter', 'mistral', 'ollama', 'gemini', 'ollama_cloud', 'grok', 'nvidia', 'cerebras', 'cohere', 'github'];
+  // Populate provider dropdown from AI_PROVIDERS (idempotente: ignora 2º init)
+  const customOrder = ['llm7', 'zen', 'openrouter', 'huggingface', 'gemini', 'ollama_cloud', 'nvidia'];
+  if (provSel.options.length === 0) {
   Object.entries(AI_PROVIDERS).sort((a,b) => {
     let ia = customOrder.indexOf(a[0]); let ib = customOrder.indexOf(b[0]);
     if(ia===-1) ia=999; if(ib===-1) ib=999;
@@ -94,6 +95,7 @@ function initKeys() {
     o.value = id; o.textContent = prov.name;
     provSel.appendChild(o);
   });
+  }
 
   let aiKeysMap = getAIKeysMap();
   const oldSingleKey = localStorage.getItem('bsf_aiKey') || '';
@@ -189,16 +191,9 @@ function initKeys() {
 
     // Always show model field
     modelField.style.display = 'flex';
-    // Show key field for Ollama local (used for custom URL)
-    if (provSel.value === 'ollama') {
-      aiIn.closest('.key-field').style.display = 'flex';
-      aiIn.placeholder = "http://localhost:11434";
-      aiIn.type = "text";
-    } else {
-      aiIn.closest('.key-field').style.display = prov.auth === 'none' ? 'none' : 'flex';
-      aiIn.placeholder = "Chave da API...";
-      aiIn.type = "password";
-    }
+    aiIn.closest('.key-field').style.display = prov.auth === 'none' ? 'none' : 'flex';
+    aiIn.placeholder = "Chave da API...";
+    aiIn.type = "password";
 
     // Render imediato com fallback (select nunca vazio), depois lista ao vivo
     modelItems = hardcodedItems(provSel.value);
@@ -248,7 +243,7 @@ function initKeys() {
     const prov = AI_PROVIDERS[providerId];
     const keyVal = aiIn.value.trim();
     aiKeysMap = getAIKeysMap();
-    if (prov && prov.auth === 'none' && providerId !== 'ollama') delete aiKeysMap[providerId];
+    if (prov && prov.auth === 'none') delete aiKeysMap[providerId];
     else aiKeysMap[providerId] = keyVal;
     let modelMap = {};
     try {
@@ -272,8 +267,8 @@ function initKeys() {
     aiIn.value = aiKeysMap[providerId] || '';
     checkWarning();
 
-    if (providerId === 'ollama' || providerId === 'gemini') {
-      await updateProvider(); // lista ao vivo precisa da key/URL recém-salva
+    if (providerId === 'gemini') {
+      await updateProvider(); // lista ao vivo precisa da key recém-salva
     }
 
     toast('Chaves salvas no cofre!', 'success');

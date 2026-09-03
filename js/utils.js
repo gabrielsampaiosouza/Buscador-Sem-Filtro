@@ -94,6 +94,20 @@ const quota = {
 };
 
 // ============ AI PROVIDERS ============
+// Extrai texto do formato Responses API (usado pelos modelos muse-spark do Zen).
+function parseResponsesOutput(d) {
+  try {
+    const out = d.output || [];
+    for (const item of out) {
+      if (item && item.type === 'message' && Array.isArray(item.content)) {
+        const t = item.content.filter(c => c.type === 'output_text' && c.text).map(c => c.text).join('');
+        if (t) return t;
+      }
+    }
+    if (typeof d.output_text === 'string' && d.output_text) return d.output_text;
+  } catch (e) {}
+  return '';
+}
 const AI_PROVIDERS = {
   gemini: {
     name: 'Gemini (Google)',
@@ -107,6 +121,7 @@ const AI_PROVIDERS = {
     buildBody: (prompt) => ({ contents:[{parts:[{text:prompt}]}] }),
     parseResp: (d) => d.candidates?.[0]?.content?.parts?.[0]?.text || '',
     auth: 'query', // key goes in URL
+    videoUrl: true, // aceita fileData com URL do YouTube (multimodal)
   },
   openrouter: {
     name: 'OpenRouter',
@@ -131,40 +146,26 @@ const AI_PROVIDERS = {
     auth: 'bearer',
     extraHeaders: { 'HTTP-Referer':'https://buscasemfiltro.app', 'X-Title':'Busca Sem Filtro' },
   },
-  grok: {
-    name: 'Grok (xAI)',
-    keyLabel: 'Chave API xAI — console.x.ai',
-    freeInfo: '<a href="https://console.x.ai/team/api-keys" target="_blank" style="color:var(--primary)">Crie sua chave aqui</a>. Verifique seu saldo no console xAI (nao ha tier gratuito perpetuo).',
+  zen: {
+    name: 'OpenCode Zen',
+    keyLabel: 'Chave API Zen — opencode.ai/auth',
+    freeInfo: '<a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Lista ao vivo via /zen/v1/models, filtrada automaticamente p/ modelos Free; este app só usa os gratuitos.',
+    // fallback gerado em 2026-09-03 via GET https://opencode.ai/zen/v1/models (só Free; lista ao vivo prevalece)
     models: [
-      { id:'grok-2-latest', name:'Grok 2 Latest', free:true },
-      { id:'grok-2-vision-latest', name:'Grok 2 Vision', free:true },
-      { id:'grok-beta', name:'Grok Beta', free:true },
+      { id:'big-pickle', name:'Big Pickle', free:true },
+      { id:'mimo-v2.5-free', name:'MiMo V2.5', free:true },
+      { id:'ling-3.0-flash-fin-free', name:'Ling 3.0 Flash', free:true },
+      { id:'nemotron-3-ultra-free', name:'Nemotron 3 Ultra', free:true },
+      { id:'nemotron-3.5-lightning-free', name:'Nemotron 3.5 Lightning', free:true },
+      { id:'deepseek-v4-flash-free', name:'DeepSeek V4 Flash', free:true },
+      { id:'laguna-s-2.1-free', name:'Laguna S 2.1', free:true },
+      { id:'muse-spark-1.3-contributor-free', name:'Muse Spark 1.3', free:true },
+      { id:'muse-spark-1.2-contributor-free', name:'Muse Spark 1.2', free:true },
     ],
-    endpoint: () => 'https://api.x.ai/v1/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], temperature:0.7, stream:false }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
+    endpoint: (model) => /muse-spark/.test(model || '') ? 'https://opencode.ai/zen/v1/responses' : 'https://opencode.ai/zen/v1/chat/completions',
+    buildBody: (prompt, model) => /muse-spark/.test(model || '') ? { model, input: prompt } : { model, messages:[{role:'user',content:prompt}], max_tokens:4000 },
+    parseResp: (d) => d.choices?.[0]?.message?.content || parseResponsesOutput(d),
     auth: 'bearer',
-  },
-  github: {
-    name: 'GitHub Models',
-    keyLabel: 'GitHub PAT (models:read) — github.com/settings/tokens',
-    freeInfo: 'Gratuito. <a href="https://github.com/settings/tokens" target="_blank" style="color:var(--primary)">Crie um token (PAT) aqui</a>.',
-    models: [
-      { id:'openai/gpt-4o-mini', name:'GPT-4o Mini', free:true },
-      { id:'meta/llama-3.3-70b-instruct', name:'Llama 3.3 70B', free:true },
-      { id:'mistral-ai/mistral-small', name:'Mistral Small', free:true },
-      { id:'deepseek/DeepSeek-R1', name:'DeepSeek R1', free:true },
-      { id:'google/gemma-3-27b-it', name:'Gemma 3 27B', free:true },
-      { id:'microsoft/phi-4', name:'Phi-4', free:true },
-    ],
-    endpoint: () => 'https://models.github.ai/inference/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], max_tokens:4000 }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
-    auth: 'bearer',
-    extraHeaders: {
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    },
   },
   nvidia: {
     name: 'NVIDIA NIM',
@@ -182,85 +183,6 @@ const AI_PROVIDERS = {
     parseResp: (d) => d.choices?.[0]?.message?.content || '',
     auth: 'bearer',
   },
-  mistral: {
-    name: 'Mistral AI',
-    keyLabel: 'Chave API Mistral — console.mistral.ai',
-    freeInfo: '<a href="https://console.mistral.ai/api-keys/" target="_blank" style="color:var(--primary)">Crie sua chave aqui</a>. Apenas modelos gratuitos/tier free habilitados.',
-    models: [
-      { id:'mistral-small-latest', name:'Mistral Small 4 (gratuito)', free:true },
-      { id:'devstral-small-latest', name:'Devstral Small', free:true },
-    ],
-    endpoint: () => 'https://api.mistral.ai/v1/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], max_tokens:4000 }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
-    auth: 'bearer',
-  },
-  cerebras: {
-    name: 'Cerebras',
-    keyLabel: 'Chave API Cerebras — cloud.cerebras.ai',
-    freeInfo: 'Gratuito. <a href="https://cloud.cerebras.ai/platform/apikeys" target="_blank" style="color:var(--primary)">Crie sua chave aqui</a> (1M tokens/dia).',
-    models: [
-      { id:'llama-3.3-70b', name:'Llama 3.3 70B', free:true },
-      { id:'llama-3.1-8b', name:'Llama 3.1 8B', free:true },
-      { id:'qwen-3-32b', name:'Qwen 3 32B', free:true },
-    ],
-    endpoint: () => 'https://api.cerebras.ai/v1/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], max_tokens:4000 }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
-    auth: 'bearer',
-  },
-  cohere: {
-    name: 'Cohere',
-    keyLabel: 'Chave API Cohere — dashboard.cohere.com/api-keys',
-    freeInfo: 'Trial gratis. <a href="https://dashboard.cohere.com/api-keys" target="_blank" style="color:var(--primary)">Crie sua chave aqui</a> (1000 chamadas/mes sem cartao).',
-    models: [
-      { id:'command-r-plus', name:'Command R+ (gratuito)', free:true },
-      { id:'command-r', name:'Command R (gratuito)', free:true },
-      { id:'command', name:'Command (gratuito)', free:true },
-    ],
-    endpoint: () => 'https://api.cohere.com/v2/chat',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}] }),
-    parseResp: (d) => d.message?.content?.[0]?.text || '',
-    auth: 'bearer',
-  },
-  huggingface: {
-    name: 'Hugging Face',
-    keyLabel: 'Token HF — huggingface.co/settings/tokens',
-    freeInfo: 'Serverless inference gratuito. <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--primary)">Crie um token</a> com permissao "Make calls to Inference Providers".',
-    models: [
-      { id:'meta-llama/Llama-3.3-70B-Instruct', name:'Llama 3.3 70B', free:true },
-      { id:'Qwen/Qwen2.5-72B-Instruct', name:'Qwen 2.5 72B', free:true },
-      { id:'mistralai/Mistral-Small-24B-Instruct-2501', name:'Mistral Small 24B', free:true },
-      { id:'google/gemma-3-27b-it', name:'Gemma 3 27B', free:true },
-    ],
-    endpoint: () => 'https://router.huggingface.co/v1/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], stream:false }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
-    auth: 'bearer',
-  },
-  ollama: {
-    name: 'Ollama (Local)',
-    keyLabel: 'URL do Servidor Ollama (ex: http://localhost:11434)',
-    freeInfo: '<b>100% gratuito e local.</b> <a href="https://ollama.com" target="_blank" style="color:var(--primary)">Instale o Ollama</a> e baixe os modelos.<br><br><span style="color:#f59e0b">🔌 O Buscador Sem Filtro detectará os modelos instalados no seu PC automaticamente se o Ollama estiver rodando (ollama serve).</span><br><br><span style="color:var(--accent)">📖 Leia o arquivo <a href="GUIA_OLLAMA.md" target="_blank" style="color:var(--accent)">GUIA_OLLAMA.md</a> para instruções detalhadas.</span>',
-    models: [
-      { id:'qwen2.5:3b', name:'Qwen 2.5 3B (recomendado)', free:true },
-      { id:'deepseek-r1:7b', name:'Deepseek R1 7B', free:true },
-      { id:'llama3.2:3b', name:'Llama 3.2 3B', free:true },
-      { id:'qwen2.5:7b', name:'Qwen 2.5 7B', free:true },
-      { id:'mistral', name:'Mistral', free:true },
-      { id:'gemma3:12b', name:'Gemma 3 12B', free:true },
-    ],
-    endpoint: () => {
-      const key = (getAIKey() || '').trim();
-      if (key && (key.startsWith('http://') || key.startsWith('https://'))) {
-        return key.replace(/\/$/,'') + '/api/chat';
-      }
-      return 'http://localhost:11434/api/chat';
-    },
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], stream:false }),
-    parseResp: (d) => d.message?.content || '',
-    auth: 'none',
-  },
   ollama_cloud: {
     name: 'Ollama (Cloud)',
     keyLabel: 'Chave API Ollama Cloud — cloud.ollama.com',
@@ -274,34 +196,6 @@ const AI_PROVIDERS = {
     ],
     endpoint: () => 'https://api.ollama.cloud/v1/chat/completions',
     buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], stream:false }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
-    auth: 'bearer',
-  },
-  zhipu: {
-    name: 'Zhipu AI (GLM)',
-    keyLabel: 'Chave API Zhipu — bigmodel.cn/usercenter/apikeys',
-    freeInfo: '<a href="https://bigmodel.cn/usercenter/apikeys" target="_blank" style="color:var(--primary)">Crie sua chave aqui</a>. Modelos gratuitos habilitados.',
-    models: [
-      { id:'glm-4-flash', name:'GLM-4 Flash (gratuito)', free:true },
-      { id:'glm-4-air', name:'GLM-4 Air (gratuito)', free:true },
-      { id:'glm-4-plus', name:'GLM-4 Plus', free:true },
-    ],
-    endpoint: () => 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], stream:false }),
-    parseResp: (d) => d.choices?.[0]?.message?.content || '',
-    auth: 'bearer',
-  },
-  klusterai: {
-    name: 'Kluster AI',
-    keyLabel: 'Chave API KlusterAI — kluster.ai/dashboard',
-    freeInfo: '<a href="https://kluster.ai/dashboard" target="_blank" style="color:var(--primary)">Crie sua chave aqui</a>. Modelos open-source com tier free.',
-    models: [
-      { id:'klusterai/Meta-Llama-3.3-70B-Instruct-Turbo', name:'Llama 3.3 70B Turbo', free:true },
-      { id:'klusterai/Meta-Llama-3.1-8B-Instruct-Turbo', name:'Llama 3.1 8B Turbo', free:true },
-      { id:'deepseek-ai/DeepSeek-R1', name:'DeepSeek R1', free:true },
-    ],
-    endpoint: () => 'https://api.kluster.ai/v1/chat/completions',
-    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], max_tokens:4000 }),
     parseResp: (d) => d.choices?.[0]?.message?.content || '',
     auth: 'bearer',
   },

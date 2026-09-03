@@ -69,6 +69,7 @@
   function armLock() {
     if (_timer) clearTimeout(_timer);
     _timer = setTimeout(function () { lock(); }, LOCK_MS);
+    if (_timer && _timer.unref) _timer.unref(); // node: não prender o processo (no browser é no-op)
   }
 
   function lock() {
