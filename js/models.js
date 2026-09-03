@@ -106,10 +106,118 @@
     }
   }
 
-  // Adapters por provider (Tarefa 2 adiciona gemini/openai-compatible/ollama/llm7;
-  // enquanto isso, demais providers usam fallback + cache).
+  // ---- Adapter: Gemini (GET /v1beta/models?key=KEY, paginação pageToken) ----
+  // Filtra supportedGenerationMethods contendo generateContent. free=true (tier free).
+  // Ordenação preferencial: 3.8-flash > 3.7-flash > demais (versão desc) > resto.
+  var GEMINI_PREF = ['gemini-3.8-flash', 'gemini-3.7-flash'];
+  async function fetchGemini(key) {
+    if (!key) throw new Error('Gemini exige API key');
+    var out = [];
+    var pageToken = '';
+    for (var page = 0; page < 5; page++) {
+      var url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' +
+        encodeURIComponent(key) + '&pageSize=100' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+      var d = await fetchJson(url);
+      var arr = (d && d.models) || [];
+      for (var i = 0; i < arr.length; i++) {
+        var m = arr[i];
+        var methods = m.supportedGenerationMethods || [];
+        if (methods.indexOf('generateContent') === -1) continue;
+        var id = String(m.name || '').replace(/^models\//, '');
+        if (!id) continue;
+        out.push({
+          id: id,
+          name: m.displayName || id,
+          free: true,
+          context: m.inputTokenLimit || 0,
+          pricing: '',
+          updated: m.version || ''
+        });
+      }
+      pageToken = (d && d.nextPageToken) || '';
+      if (!pageToken) break;
+    }
+    out.sort(function (a, b) { return geminiRank(a.id) - geminiRank(b.id); });
+    return out;
+  }
+  function geminiRank(id) {
+    var i = GEMINI_PREF.indexOf(id);
+    if (i !== -1) return i - 1000;
+    var m = /gemini-(\d+)\.(\d+)/.exec(id || '');
+    if (m) return -(parseInt(m[1], 10) * 100 + parseInt(m[2], 10));
+    return 0;
+  }
+
+  // ---- Adapter genérico OpenAI-compatible: GET {base}/v1/models ----
+  // Com Authorization: Bearer KEY quando auth==='bearer'. 404/CORS/falha => throw (fallback).
+  var OAI_BASES = {
+    grok: 'https://api.x.ai',
+    mistral: 'https://api.mistral.ai',
+    cerebras: 'https://api.cerebras.ai',
+    cohere: 'https://api.cohere.com',
+    huggingface: 'https://router.huggingface.co',
+    github: 'https://models.github.ai',
+    nvidia: 'https://integrate.api.nvidia.com',
+    zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+    klusterai: 'https://api.kluster.ai',
+    ollama_cloud: 'https://api.ollama.cloud',
+    llm7: 'https://api.llm7.io'
+  };
+  function shortName(id) {
+    var s = String(id || '');
+    var i = Math.max(s.lastIndexOf('/'), s.lastIndexOf(':'));
+    return i >= 0 ? s.slice(i + 1) : s;
+  }
+  function makeOpenAIAdapter(providerId) {
+    return async function (key) {
+      var prov = (typeof AI_PROVIDERS !== 'undefined' && AI_PROVIDERS[providerId]) || {};
+      var base = OAI_BASES[providerId];
+      if (!base) throw new Error('Sem base para ' + providerId);
+      if (prov.auth === 'bearer' && !key) throw new Error(providerId + ' exige API key');
+      var headers = { 'Accept': 'application/json' };
+      if (prov.auth === 'bearer' && key) headers['Authorization'] = 'Bearer ' + key;
+      if (provId(providerId) === 'github') {
+        headers['Accept'] = 'application/vnd.github+json';
+        headers['X-GitHub-Api-Version'] = '2022-11-28';
+      }
+      var d = await fetchJson(base + '/v1/models', { headers: headers });
+      // Cohere usa GET /v1/models sem prefixo extra; se vier {models:[{name}]} normaliza também.
+      var arr = (d && d.data) || d.models || [];
+      return arr.map(function (m) {
+        var id = typeof m === 'string' ? m : (m.id || m.name || '');
+        return { id: id, name: shortName(id), free: true, context: 0, pricing: '', updated: '' };
+      }).filter(function (m) { return !!m.id; });
+    };
+  }
+  function provId(p) { return p; }
+
+  // ---- Adapter: Ollama local (lógica atual, movida de app.js) ----
+  async function fetchOllama(key) {
+    var base = (key && /^https?:\/\//.test(key.trim())) ? key.trim().replace(/\/$/, '') : 'http://localhost:11434';
+    var d = await fetchJson(base + '/api/tags', { timeout: 5000 });
+    var arr = (d && d.models) || [];
+    return arr.map(function (m) {
+      var gb = m.size ? ' (' + (m.size / 1073741824).toFixed(1) + 'GB)' : '';
+      return { id: m.name, name: (m.name || '') + gb, free: true, context: 0, pricing: '', updated: m.modified_at || '' };
+    });
+  }
+
+  // Adapters por provider (um fetch cada, timeout 12s, sem vazar key em log).
   var adapters = {
-    openrouter: fetchOpenRouter
+    openrouter: fetchOpenRouter,
+    gemini: fetchGemini,
+    grok: makeOpenAIAdapter('grok'),
+    mistral: makeOpenAIAdapter('mistral'),
+    cerebras: makeOpenAIAdapter('cerebras'),
+    cohere: makeOpenAIAdapter('cohere'),
+    huggingface: makeOpenAIAdapter('huggingface'),
+    github: makeOpenAIAdapter('github'),
+    nvidia: makeOpenAIAdapter('nvidia'),
+    zhipu: makeOpenAIAdapter('zhipu'),
+    klusterai: makeOpenAIAdapter('klusterai'),
+    ollama_cloud: makeOpenAIAdapter('ollama_cloud'),
+    llm7: makeOpenAIAdapter('llm7'),
+    ollama: fetchOllama
   };
 
   function notifyFallback(providerId) {
