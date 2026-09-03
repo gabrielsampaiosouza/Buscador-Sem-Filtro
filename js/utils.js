@@ -147,9 +147,9 @@ const AI_PROVIDERS = {
     extraHeaders: { 'HTTP-Referer':'https://buscasemfiltro.app', 'X-Title':'Busca Sem Filtro' },
   },
   zen: {
-    name: 'OpenCode Zen',
+    name: 'OpenCode Zen (Em breve)',
     keyLabel: 'Chave API Zen — opencode.ai/auth',
-    freeInfo: '<a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Lista ao vivo via /zen/v1/models, filtrada automaticamente p/ modelos Free; este app só usa os gratuitos. Modelos muse-spark usam Responses API.',
+    freeInfo: '<b style="color:#f59e0b">Em breve:</b> o acesso via navegador está instável (WAF bloqueia o fetch; curl/navegação passam). A lista usa o fallback offline completo (9 Free) até a liberação. <a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Modelos muse-spark usam Responses API.',
     // fallback gerado em 2026-09-03 via GET https://opencode.ai/zen/v1/models (só Free; lista ao vivo prevalece)
     models: [
       { id:'big-pickle', name:'Big Pickle', free:true },
