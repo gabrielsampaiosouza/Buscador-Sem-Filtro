@@ -142,8 +142,12 @@ Sem ela você consegue usar todas as ferramentas de dados, mas não os relatóri
 # Com npx (não precisa instalar nada)
 npx serve .
 
-# Com Python
+# Com Python (só estáticos)
 python -m http.server 8080
+
+# Com Python + relay OpenCode Zen (o Zen não envia CORS; sem isto a lista cai no fallback)
+python3 server.py 8080
+# -> http://localhost:8080
 
 # Com PHP
 php -S localhost:8080

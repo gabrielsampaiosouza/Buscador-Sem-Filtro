@@ -188,13 +188,14 @@
       });
     };
   }
-  // ---- Adapter: OpenCode Zen (GET /zen/v1/models é público; FILTRO: só gratuitos) ----
+  // ---- Adapter: OpenCode Zen ----
+  // O Zen NÃO envia CORS: 1) tenta o relay same-origin (server.py); 2) direto
+  // (só funciona fora do navegador). FILTRO: só gratuitos.
+  function setZenRelay(v) { try { window.__bsfZenRelay = !!v; } catch (e) {} }
   function zenShort(id) {
     return String(id || '').replace(/-free$/, '').replace(/-contributor$/, '');
   }
-  async function fetchZen() {
-    var d = await fetchJson('https://opencode.ai/zen/v1/models');
-    var arr = (d && d.data) || [];
+  function zenFilterFree(arr) {
     return arr
       .filter(function (m) {
         var id = typeof m === 'string' ? m : (m.id || '');
@@ -204,6 +205,15 @@
         var id = typeof m === 'string' ? m : m.id;
         return { id: id, name: zenShort(id), free: true, context: 0, pricing: 'Free', updated: '' };
       });
+  }
+  async function fetchZen() {
+    try {
+      var items = zenFilterFree(((await fetchJson('/api/zen/models', { timeout: 8000 })) || {}).data || []);
+      if (items.length) { setZenRelay(true); return items; }
+    } catch (e) {}
+    var live = zenFilterFree(((await fetchJson('https://opencode.ai/zen/v1/models')) || {}).data || []);
+    setZenRelay(false);
+    return live;
   }
 
   // Adapters por provider (um fetch cada, timeout 12s, sem vazar key em log).

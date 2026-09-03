@@ -147,9 +147,9 @@ const AI_PROVIDERS = {
     extraHeaders: { 'HTTP-Referer':'https://buscasemfiltro.app', 'X-Title':'Busca Sem Filtro' },
   },
   zen: {
-    name: 'OpenCode Zen (Em breve)',
+    name: 'OpenCode Zen',
     keyLabel: 'Chave API Zen — opencode.ai/auth',
-    freeInfo: '<b style="color:#f59e0b">Em breve:</b> o acesso via navegador está instável (WAF bloqueia o fetch; curl/navegação passam). A lista usa o fallback offline completo (9 Free) até a liberação. <a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Modelos muse-spark usam Responses API.',
+    freeInfo: '<a href="https://opencode.ai/auth" target="_blank" style="color:var(--primary)">Pegue sua chave aqui</a>. Lista ao vivo (só Free). O Zen não envia CORS: use <b>python3 server.py</b> e abra http://localhost:8080. Modelos muse-spark usam Responses API.',
     // fallback gerado em 2026-09-03 via GET https://opencode.ai/zen/v1/models (só Free; lista ao vivo prevalece)
     models: [
       { id:'big-pickle', name:'Big Pickle', free:true },
@@ -162,9 +162,28 @@ const AI_PROVIDERS = {
       { id:'muse-spark-1.3-contributor-free', name:'Muse Spark 1.3', free:true },
       { id:'muse-spark-1.2-contributor-free', name:'Muse Spark 1.2', free:true },
     ],
-    endpoint: (model) => /muse-spark/.test(model || '') ? 'https://opencode.ai/zen/v1/responses' : 'https://opencode.ai/zen/v1/chat/completions',
+    endpoint: (model) => {
+      const rsp = /muse-spark/.test(model || '');
+      try { if (window.__bsfZenRelay) return rsp ? '/api/zen/responses' : '/api/zen/chat'; } catch (e) {}
+      return rsp ? 'https://opencode.ai/zen/v1/responses' : 'https://opencode.ai/zen/v1/chat/completions';
+    },
     buildBody: (prompt, model) => /muse-spark/.test(model || '') ? { model, input: prompt } : { model, messages:[{role:'user',content:prompt}], max_tokens:4000 },
     parseResp: (d) => d.choices?.[0]?.message?.content || parseResponsesOutput(d),
+    auth: 'bearer',
+  },
+  huggingface: {
+    name: 'Hugging Face',
+    keyLabel: 'Token HF — huggingface.co/settings/tokens',
+    freeInfo: 'Serverless inference gratuito. <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--primary)">Crie um token</a> com permissao "Make calls to Inference Providers".',
+    models: [
+      { id:'meta-llama/Llama-3.3-70B-Instruct', name:'Llama 3.3 70B', free:true },
+      { id:'Qwen/Qwen2.5-72B-Instruct', name:'Qwen 2.5 72B', free:true },
+      { id:'mistralai/Mistral-Small-24B-Instruct-2501', name:'Mistral Small 24B', free:true },
+      { id:'google/gemma-3-27b-it', name:'Gemma 3 27B', free:true },
+    ],
+    endpoint: () => 'https://router.huggingface.co/v1/chat/completions',
+    buildBody: (prompt, model) => ({ model, messages:[{role:'user',content:prompt}], stream:false }),
+    parseResp: (d) => d.choices?.[0]?.message?.content || '',
     auth: 'bearer',
   },
   nvidia: {
